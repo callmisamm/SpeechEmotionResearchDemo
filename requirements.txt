@@ -8,3 +8,4 @@ joblib==1.5.3
 streamlit==1.60.0
 streamlit-mic-recorder==0.0.8
 soundfile==0.14.0
+opencv-python-headless
