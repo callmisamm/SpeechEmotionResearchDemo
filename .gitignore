@@ -3,7 +3,9 @@ dataset/
 
 # Saved training features
 saved_features/
-
+# The live demonstrator needs the emotion label encoder
+!saved_features/
+!saved_features/label_encoder.pkl
 # Virtual environments
 venv/
 .venv/
