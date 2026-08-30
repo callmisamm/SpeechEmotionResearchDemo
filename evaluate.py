@@ -33,7 +33,7 @@ print("=" * 60)
 print("Loading Trained CNN Model")
 print("=" * 60)
 
-model = load_model("models/cnn_model.keras")
+model = load_model("models/cnn_model_v2.keras")
 
 print("Model Loaded Successfully!")
 

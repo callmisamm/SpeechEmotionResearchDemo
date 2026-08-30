@@ -104,3 +104,55 @@ def extract_log_mel(signal):
     )
 
     return log_mel.astype(np.float32)
+
+# ==========================================================
+# SPLIT AUDIO INTO COMPLETE 3-SECOND CHUNKS
+# ==========================================================
+
+def split_audio_into_chunks(path):
+    """
+    Load the complete audio and split it into complete
+    3-second chunks.
+
+    Only complete 3-second chunks are returned.
+    Any remaining audio shorter than 3 seconds is ignored.
+
+    Returns:
+        chunks: list of numpy arrays
+        sample_rate: audio sample rate
+    """
+
+    signal, sr = librosa.load(
+        path,
+        sr=SAMPLE_RATE
+    )
+
+    # Remove silence from beginning/end
+    signal, _ = librosa.effects.trim(
+        signal,
+        top_db=20
+    )
+
+    # Normalize amplitude
+    signal = librosa.util.normalize(signal)
+
+    # Number of complete 3-second chunks
+    num_chunks = len(signal) // SAMPLES
+
+    chunks = []
+
+    for i in range(num_chunks):
+
+        start = i * SAMPLES
+        end = start + SAMPLES
+
+        chunk = signal[start:end]
+
+        # Every returned chunk must be exactly 3 seconds
+        if len(chunk) == SAMPLES:
+
+            chunks.append(
+                chunk.astype(np.float32)
+            )
+
+    return chunks, sr
