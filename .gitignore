@@ -27,3 +27,5 @@ Thumbs.db
 
 # Windows shortcuts
 *.lnk
+
+saved_features/X_train.npy

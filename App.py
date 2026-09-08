@@ -1,4 +1,3 @@
-
 """
 ======================================================================
 Speech Emotion Recognition
@@ -63,17 +62,13 @@ st.set_page_config(
 # ====================================================================
 
 SAMPLE_RATE = 22050
-
 DURATION = 3
-
 SAMPLES = SAMPLE_RATE * DURATION
 
 MODEL_PATH = "models/cnn_model_v2.keras"
-
 LABEL_PATH = "saved_features/label_encoder.pkl"
 
 TEST_ACCURACY = 69.44
-
 NUM_CLASSES = 8
 
 INPUT_SIZE = (128, 128, 1)
@@ -86,22 +81,153 @@ INPUT_SIZE = (128, 128, 1)
 EMOTION_ICONS = {
 
     "Happy": "😊",
-
     "Sad": "😢",
-
     "Angry": "😠",
-
     "Fear": "😨",
-
     "Disgust": "🤢",
-
     "Surprise": "😲",
-
     "Neutral": "😐",
-
     "Calm": "😌"
 
 }
+
+
+# ====================================================================
+# EMOTION LOADING ANIMATION
+# ====================================================================
+
+def show_emotion_loader(placeholder):
+
+    placeholder.markdown(
+        """
+        <style>
+
+        .emotion-loader-wrapper {
+            text-align: center;
+            padding: 25px 10px;
+        }
+
+        .emotion-loader {
+            position: relative;
+            width: 100px;
+            height: 90px;
+            margin: 0 auto;
+        }
+
+        .emotion {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+
+            display: flex;
+            justify-content: center;
+            align-items: center;
+
+            font-size: 60px;
+            opacity: 0;
+        }
+
+        .emotion:nth-child(1) {
+            animation: showEmoji 2.4s infinite;
+            animation-delay: 0s;
+        }
+
+        .emotion:nth-child(2) {
+            animation: showEmoji 2.4s infinite;
+            animation-delay: 0.3s;
+        }
+
+        .emotion:nth-child(3) {
+            animation: showEmoji 2.4s infinite;
+            animation-delay: 0.6s;
+        }
+
+        .emotion:nth-child(4) {
+            animation: showEmoji 2.4s infinite;
+            animation-delay: 0.9s;
+        }
+
+        .emotion:nth-child(5) {
+            animation: showEmoji 2.4s infinite;
+            animation-delay: 1.2s;
+        }
+
+        .emotion:nth-child(6) {
+            animation: showEmoji 2.4s infinite;
+            animation-delay: 1.5s;
+        }
+
+        .emotion:nth-child(7) {
+            animation: showEmoji 2.4s infinite;
+            animation-delay: 1.8s;
+        }
+
+        .emotion:nth-child(8) {
+            animation: showEmoji 2.4s infinite;
+            animation-delay: 2.1s;
+        }
+
+        @keyframes showEmoji {
+
+            0% {
+                opacity: 0;
+                transform: scale(0.7);
+            }
+
+            8% {
+                opacity: 1;
+                transform: scale(1.15);
+            }
+
+            16% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            24% {
+                opacity: 0;
+                transform: scale(0.7);
+            }
+
+            100% {
+                opacity: 0;
+                transform: scale(0.7);
+            }
+
+        }
+
+        .loading-text {
+            font-size: 18px;
+            margin-top: 15px;
+        }
+
+        </style>
+
+        <div class="emotion-loader-wrapper">
+
+            <div class="emotion-loader">
+
+                <span class="emotion">😐</span>
+                <span class="emotion">😌</span>
+                <span class="emotion">😊</span>
+                <span class="emotion">😢</span>
+                <span class="emotion">😠</span>
+                <span class="emotion">😨</span>
+                <span class="emotion">🤢</span>
+                <span class="emotion">😲</span>
+
+            </div>
+
+            <div class="loading-text">
+                Analyzing speech and extracting emotional features...
+            </div>
+
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 
 # ====================================================================
@@ -638,11 +764,8 @@ if uploaded_file is not None:
     try:
 
         with tempfile.NamedTemporaryFile(
-
             delete=False,
-
             suffix=".wav"
-
         ) as temp_audio:
 
             temp_audio.write(
@@ -714,30 +837,49 @@ if uploaded_file is not None:
 
             type="primary",
 
-            use_container_width=True
+            use_container_width=True,
+
+            key="upload_predict_emotion_button"
+
         )
 
         # -----------------------------------------------------------
-        # RUN PREDICTION
+        # PREDICT EMOTION
         # -----------------------------------------------------------
 
         if predict_button:
 
+            loading_placeholder = st.empty()
+
             try:
 
-                with st.spinner(
-                    "Analyzing speech and extracting emotional features..."
-                ):
+                # ---------------------------------------------------
+                # SHOW EMOTION LOADER
+                # ---------------------------------------------------
 
-                    (
-                        emotion,
-                        confidence,
-                        probabilities,
-                        feature,
-                        original_duration
-                    ) = predict_emotion(
-                        temp_path
-                    )
+                show_emotion_loader(
+                    loading_placeholder
+                )
+
+                # ---------------------------------------------------
+                # CNN PREDICTION
+                # ---------------------------------------------------
+
+                (
+                    emotion,
+                    confidence,
+                    probabilities,
+                    feature,
+                    original_duration
+                ) = predict_emotion(
+                    temp_path
+                )
+
+                # ---------------------------------------------------
+                # REMOVE LOADER
+                # ---------------------------------------------------
+
+                loading_placeholder.empty()
 
                 # ---------------------------------------------------
                 # STORE RESULTS
@@ -761,11 +903,25 @@ if uploaded_file is not None:
 
             except Exception as e:
 
+                # ---------------------------------------------------
+                # REMOVE LOADER ON ERROR
+                # ---------------------------------------------------
+
+                loading_placeholder.empty()
+
                 st.error(
                     "An error occurred during prediction."
                 )
 
                 st.exception(e)
+
+    except Exception as e:
+
+        st.error(
+            "An error occurred while processing the uploaded audio."
+        )
+
+        st.exception(e)
 
     finally:
 
@@ -862,6 +1018,7 @@ if st.session_state.prediction_done:
             label="Prediction Confidence",
 
             value=f"{predicted_confidence:.2f}%"
+
         )
 
 
@@ -947,6 +1104,7 @@ time and Mel-frequency bands.
         for i in range(
             len(class_names)
         )
+
     }
 
     chart_data = pd.DataFrame(
@@ -957,6 +1115,7 @@ time and Mel-frequency bands.
             probability_dict
 
         }
+
     )
 
     st.bar_chart(
@@ -988,6 +1147,7 @@ time and Mel-frequency bands.
             )
 
         }
+
     )
 
     prediction_df = (
@@ -1014,6 +1174,7 @@ time and Mel-frequency bands.
         prediction_df,
 
         use_container_width=True
+
     )
 
     st.divider()
@@ -1034,9 +1195,11 @@ time and Mel-frequency bands.
     cols = st.columns(3)
 
     rank_labels = [
+
         "🥇 Top Prediction",
         "🥈 Second Prediction",
         "🥉 Third Prediction"
+
     ]
 
     for i in range(3):
