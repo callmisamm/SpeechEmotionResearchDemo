@@ -268,53 +268,31 @@ def predict_emotion(audio_path):
     }
 
 
-# ==========================================================
-# TOP-K PREDICTIONS
-# ==========================================================
-
-def get_top_predictions(
-    result,
-    k=3
-):
-    """
-    Return the Top-K emotion predictions.
-    """
-
-    probabilities = (
+def get_top_predictions(result, k=3):
+    
+    probabilities = np.asarray(
         result["probabilities"]
     )
 
-    class_names = (
-        result["class_names"]
-    )
+    class_names = result["class_names"]
 
-    # ------------------------------------------------------
-    # Sort probabilities descending
-    # ------------------------------------------------------
-
-    indices = np.argsort(
+    top_indices = np.argsort(
         probabilities
     )[::-1][:k]
 
     top_predictions = []
 
-    # ------------------------------------------------------
-    # Create result list
-    # ------------------------------------------------------
+    for index in top_indices:
 
-    for idx in indices:
-
-        top_predictions.append({
-
-            "emotion":
-                class_names[idx],
-
-            "confidence":
-                float(
-                    probabilities[idx] * 100
-                )
-
-        })
+        top_predictions.append(
+            {
+                "emotion": class_names[index],
+                "confidence": float(
+                    probabilities[index] * 100
+                ),
+                "index": int(index)
+            }
+        )
 
     return top_predictions
 
@@ -357,81 +335,46 @@ def emotion_emoji(
     )
 
 
-# ==========================================================
-# CHUNK-LEVEL EMOTION PREDICTION
-# ==========================================================
-
-def predict_emotion_by_chunks(
-    audio_path
-):
+def predict_emotion_by_chunks(audio_path):
     """
-    Predict emotion for every complete
-    3-second audio chunk.
+    Predict emotions for every 3-second audio chunk
+    using 50% overlap.
 
-    Each chunk is independently processed
-    by CNN Version 2.
+    Each chunk contains:
+        - Main predicted emotion
+        - Confidence
+        - Complete probability distribution
+        - Top-3 predictions
+        - Start/end time
+        - Inference time
 
     Returns:
-        List containing prediction information
-        for every complete chunk.
+        List of dictionaries
     """
 
-    from utils.feature_utils import (
-        split_audio_into_chunks
-    )
-
-    # ------------------------------------------------------
-    # Load CNN V2
-    # ------------------------------------------------------
+    from utils.feature_utils import split_audio_into_chunks
 
     model = load_prediction_model()
+    label_encoder = load_label_encoder()
 
-    # ------------------------------------------------------
-    # Load encoder
-    # ------------------------------------------------------
-
-    encoder = load_label_encoder()
-
-    class_names = encoder.classes_
-
-    # ------------------------------------------------------
-    # Split audio into 3-second chunks
-    # ------------------------------------------------------
-
-    chunks, sample_rate = (
-        split_audio_into_chunks(
-            audio_path
-        )
+    chunks, sample_rate, chunk_times = (
+        split_audio_into_chunks(audio_path)
     )
 
     results = []
 
-    # ------------------------------------------------------
-    # Process every chunk
-    # ------------------------------------------------------
-
-    for i, chunk in enumerate(
-        chunks
-    ):
+    for i, chunk in enumerate(chunks):
 
         # --------------------------------------------------
-        # Extract Log-Mel
+        # FEATURE EXTRACTION
         # --------------------------------------------------
 
-        feature = extract_log_mel(
+        log_mel = extract_log_mel(
             chunk
         )
 
-        # --------------------------------------------------
-        # Prepare CNN input
-        #
-        # (128, 128)
-        #       ↓
-        # (1, 128, 128, 1)
-        # --------------------------------------------------
-
         model_input = np.expand_dims(
-            feature,
+            log_mel,
             axis=0
         )
 
@@ -440,93 +383,98 @@ def predict_emotion_by_chunks(
             axis=-1
         )
 
-        model_input = model_input.astype(
-            np.float32
-        )
-
         # --------------------------------------------------
-        # CNN V2 inference
+        # PREDICTION
         # --------------------------------------------------
 
         start_time = time.time()
 
-        prediction = model.predict(
+        probabilities = model.predict(
             model_input,
             verbose=0
-        )
+        )[0]
 
         inference_time = (
             time.time() - start_time
         )
 
         # --------------------------------------------------
-        # Probabilities
+        # PREDICTED EMOTION
         # --------------------------------------------------
 
-        probabilities = prediction[0]
-
-        # --------------------------------------------------
-        # Predicted class
-        # --------------------------------------------------
-
-        predicted_index = np.argmax(
-            probabilities
+        prediction_index = int(
+            np.argmax(probabilities)
         )
 
-        emotion = class_names[
-            predicted_index
-        ]
-
-        # --------------------------------------------------
-        # Confidence
-        # --------------------------------------------------
+        emotion = label_encoder.inverse_transform(
+            [prediction_index]
+        )[0]
 
         confidence = float(
-            probabilities[
-                predicted_index
-            ] * 100
+            probabilities[prediction_index] * 100
         )
 
         # --------------------------------------------------
-        # Chunk timing
+        # CHUNK TIMING
         # --------------------------------------------------
 
-        start_time_audio = (
-            i * 3
-        )
-
-        end_time_audio = (
-            start_time_audio + 3
+        start_time_audio, end_time_audio = (
+            chunk_times[i]
         )
 
         # --------------------------------------------------
-        # Save result
+        # TOP-3 PREDICTIONS
         # --------------------------------------------------
 
-        results.append({
+        top_indices = np.argsort(
+            probabilities
+        )[::-1][:3]
 
-            "chunk":
-                i + 1,
+        top_predictions = []
 
-            "start_time":
-                start_time_audio,
+        for index in top_indices:
 
-            "end_time":
-                end_time_audio,
+            top_predictions.append(
+                {
+                    "emotion": label_encoder.inverse_transform(
+                        [int(index)]
+                    )[0],
 
-            "emotion":
-                emotion,
+                    "probability": float(
+                        probabilities[index] * 100
+                    ),
 
-            "confidence":
-                confidence,
+                    "index": int(index)
+                }
+            )
 
-            "probabilities":
-                probabilities,
+        # --------------------------------------------------
+        # STORE RESULT
+        # --------------------------------------------------
 
-            "inference_time":
-                inference_time
+        results.append(
+            {
+                "chunk": i + 1,
 
-        })
+                "start_time": start_time_audio,
+
+                "end_time": end_time_audio,
+
+                "emotion": emotion,
+
+                "confidence": confidence,
+
+                "probabilities": probabilities,
+
+                "class_names": label_encoder.classes_.tolist(),
+
+                "prediction_index": prediction_index,
+
+                "top_predictions": top_predictions,
+
+                "inference_time": inference_time
+            }
+        )
 
     return results
 

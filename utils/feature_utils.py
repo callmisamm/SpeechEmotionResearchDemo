@@ -106,53 +106,129 @@ def extract_log_mel(signal):
     return log_mel.astype(np.float32)
 
 # ==========================================================
-# SPLIT AUDIO INTO COMPLETE 3-SECOND CHUNKS
+# SPLIT AUDIO INTO 3-SECOND CHUNKS WITH 50% OVERLAP
 # ==========================================================
 
 def split_audio_into_chunks(path):
     """
-    Load the complete audio and split it into complete
-    3-second chunks.
+    Split complete audio into 3-second chunks
+    with 50% overlap.
+
+    Chunk duration:
+        3 seconds
+
+    Overlap:
+        50%
+
+    Hop size:
+        1.5 seconds
 
     Only complete 3-second chunks are returned.
-    Any remaining audio shorter than 3 seconds is ignored.
+    Any remaining audio shorter than 3 seconds
+    at the end is ignored.
 
     Returns:
         chunks: list of numpy arrays
         sample_rate: audio sample rate
+        chunk_times: list of (start_time, end_time)
     """
+
+    # ------------------------------------------------------
+    # Load complete audio
+    # ------------------------------------------------------
 
     signal, sr = librosa.load(
         path,
         sr=SAMPLE_RATE
     )
 
+    # ------------------------------------------------------
     # Remove silence from beginning/end
+    # ------------------------------------------------------
+
     signal, _ = librosa.effects.trim(
         signal,
         top_db=20
     )
 
+    # ------------------------------------------------------
     # Normalize amplitude
-    signal = librosa.util.normalize(signal)
+    # ------------------------------------------------------
 
-    # Number of complete 3-second chunks
-    num_chunks = len(signal) // SAMPLES
+    signal = librosa.util.normalize(
+        signal
+    )
+
+    # ------------------------------------------------------
+    # Chunk configuration
+    # ------------------------------------------------------
+
+    chunk_duration = 3.0
+
+    overlap = 0.50
+
+    chunk_samples = int(
+        SAMPLE_RATE * chunk_duration
+    )
+
+    hop_samples = int(
+        chunk_samples * (1 - overlap)
+    )
+
+    # ------------------------------------------------------
+    # Prepare output
+    # ------------------------------------------------------
 
     chunks = []
 
-    for i in range(num_chunks):
+    chunk_times = []
 
-        start = i * SAMPLES
-        end = start + SAMPLES
+    # ------------------------------------------------------
+    # Generate overlapping chunks
+    # ------------------------------------------------------
+
+    start = 0
+
+    while start + chunk_samples <= len(signal):
+
+        end = start + chunk_samples
 
         chunk = signal[start:end]
 
-        # Every returned chunk must be exactly 3 seconds
-        if len(chunk) == SAMPLES:
+        # --------------------------------------------------
+        # Ensure complete 3-second chunk
+        # --------------------------------------------------
+
+        if len(chunk) == chunk_samples:
 
             chunks.append(
                 chunk.astype(np.float32)
             )
 
-    return chunks, sr
+            # Convert sample positions to seconds
+            start_time = (
+                start / SAMPLE_RATE
+            )
+
+            end_time = (
+                end / SAMPLE_RATE
+            )
+
+            chunk_times.append(
+                (
+                    start_time,
+                    end_time
+                )
+            )
+
+        # --------------------------------------------------
+        # Move forward by 1.5 seconds
+        # --------------------------------------------------
+
+        start += hop_samples
+
+    return (
+        chunks,
+        sr,
+        chunk_times
+    )

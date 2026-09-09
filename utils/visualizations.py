@@ -240,7 +240,218 @@ def plot_probability_chart(probabilities, class_names):
 
     return fig
 
+# ==========================================================
+# TEMPORAL EMOTION TIMELINE
+# ==========================================================
 
+def plot_emotion_timeline(chunk_results):
+    """
+    Create a research-ready temporal emotion timeline.
+
+    Each horizontal bar represents one complete 3-second
+    audio chunk positioned according to its actual start
+    and end time.
+
+    The visualization preserves the 50% overlap between
+    consecutive chunks.
+
+    Parameters:
+        chunk_results: list of dictionaries returned by
+                       predict_emotion_by_chunks()
+
+    Returns:
+        matplotlib figure
+    """
+
+    if not chunk_results:
+        return None
+
+    # ======================================================
+    # EXTRACT CHUNK INFORMATION
+    # ======================================================
+
+    start_times = []
+    end_times = []
+    emotions = []
+    confidences = []
+
+    for chunk in chunk_results:
+
+        start_times.append(
+            float(chunk["start_time"])
+        )
+
+        end_times.append(
+            float(chunk["end_time"])
+        )
+
+        emotions.append(
+            chunk["emotion"]
+        )
+
+        confidences.append(
+            float(chunk["confidence"])
+        )
+
+    # ======================================================
+    # UNIQUE EMOTIONS
+    # ======================================================
+
+    unique_emotions = []
+
+    for emotion in emotions:
+
+        if emotion not in unique_emotions:
+            unique_emotions.append(emotion)
+
+    # ======================================================
+    # CREATE FIGURE
+    # ======================================================
+
+    fig, ax = plt.subplots(
+        figsize=(12, 5)
+    )
+
+    # ======================================================
+    # EMOTION POSITIONS
+    # ======================================================
+
+    emotion_positions = {
+        emotion: index
+        for index, emotion in enumerate(
+            unique_emotions
+        )
+    }
+
+    # ======================================================
+    # DRAW TEMPORAL CHUNKS
+    # ======================================================
+
+    for i in range(
+        len(chunk_results)
+    ):
+
+        start = start_times[i]
+        end = end_times[i]
+
+        emotion = emotions[i]
+        confidence = confidences[i]
+
+        y_position = emotion_positions[
+            emotion
+        ]
+
+        duration = end - start
+
+        # --------------------------------------------------
+        # Draw chunk as horizontal bar
+        # --------------------------------------------------
+
+        ax.barh(
+            y_position,
+            duration,
+            left=start,
+            height=0.55,
+            alpha=0.75
+        )
+
+        # --------------------------------------------------
+        # Chunk label
+        # --------------------------------------------------
+
+        label = (
+            f"Chunk {i + 1}\n"
+            f"{emotion} ({confidence:.1f}%)"
+        )
+
+        ax.text(
+            start + duration / 2,
+            y_position,
+            label,
+            ha="center",
+            va="center",
+            fontsize=9,
+            fontweight="bold"
+        )
+
+    # ======================================================
+    # Y-AXIS
+    # ======================================================
+
+    ax.set_yticks(
+        range(
+            len(unique_emotions)
+        )
+    )
+
+    ax.set_yticklabels(
+        unique_emotions
+    )
+
+    ax.set_ylabel(
+        "Predicted Emotion"
+    )
+
+    # ======================================================
+    # X-AXIS
+    # ======================================================
+
+    max_time = max(
+        end_times
+    )
+
+    ax.set_xlim(
+        0,
+        max_time
+    )
+
+    ax.set_xlabel(
+        "Audio Time (seconds)"
+    )
+
+    # ======================================================
+    # TITLE
+    # ======================================================
+
+    ax.set_title(
+        "Temporal Emotion Analysis"
+    )
+
+    # ======================================================
+    # GRID
+    # ======================================================
+
+    ax.grid(
+        axis="x",
+        linestyle="--",
+        alpha=0.3
+    )
+
+    # ======================================================
+    # TIME MARKERS
+    # ======================================================
+
+    for start in start_times:
+
+        ax.axvline(
+            start,
+            linestyle=":",
+            alpha=0.25
+        )
+
+    # ======================================================
+    # INVERT Y-AXIS
+    # ======================================================
+
+    ax.invert_yaxis()
+
+    # ======================================================
+    # LAYOUT
+    # ======================================================
+
+    plt.tight_layout()
+
+    return fig
 # ==========================================================
 # CONFUSION MATRIX
 # ==========================================================

@@ -1,4 +1,3 @@
-
 """
 ==========================================================
 Speech Emotion Recognition
@@ -47,7 +46,13 @@ from utils.visualizations import (
     plot_mfcc,
     plot_chroma,
     plot_attention_heatmap,
-    plot_probability_chart
+    plot_probability_chart,
+    plot_emotion_timeline
+)
+
+from utils.feature_utils import (
+    load_audio,
+    SAMPLE_RATE
 )
 
 
@@ -891,78 +896,149 @@ except Exception as e:
 
 
 # ==========================================================
-# ATTENTION HEATMAP
-# ==========================================================
-
-st.subheader("🧠 Feature Attention / Activation View")
-
-try:
-
-    attention_fig = plot_attention_heatmap(
-        signal,
-        sample_rate
-    )
-
-    st.pyplot(
-        attention_fig,
-        use_container_width=True
-    )
-
-except Exception:
-
-    st.info(
-        "Attention visualization is provided as a research-oriented feature view."
-    )
-
-
-# ==========================================================
 # FEATURE STATISTICS
 # ==========================================================
 
 st.divider()
 
-st.header("📋 Feature Statistics")
+st.header("📋 Audio Feature Statistics")
 
 try:
 
-    numeric_signal = np.asarray(
+    # ------------------------------------------------------
+    # Basic Audio Information
+    # ------------------------------------------------------
+
+    duration = len(signal) / SAMPLE_RATE
+
+    # ------------------------------------------------------
+    # Audio Features
+    # ------------------------------------------------------
+
+    rms = librosa.feature.rms(
+        y=signal
+    )
+
+    zero_crossing_rate = librosa.feature.zero_crossing_rate(
         signal
     )
+
+    spectral_centroid = librosa.feature.spectral_centroid(
+        y=signal,
+        sr=SAMPLE_RATE
+    )
+
+    spectral_bandwidth = librosa.feature.spectral_bandwidth(
+        y=signal,
+        sr=SAMPLE_RATE
+    )
+
+    # ------------------------------------------------------
+    # MFCC
+    # ------------------------------------------------------
+
+    mfcc = librosa.feature.mfcc(
+        y=signal,
+        sr=SAMPLE_RATE,
+        n_mfcc=13
+    )
+
+    # ======================================================
+    # DISPLAY STATISTICS
+    # ======================================================
 
     stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
 
     with stat_col1:
 
         st.metric(
-            "Mean",
-            f"{np.mean(numeric_signal):.4f}"
+            "Duration",
+            f"{duration:.2f} sec"
         )
 
     with stat_col2:
 
         st.metric(
-            "Std",
-            f"{np.std(numeric_signal):.4f}"
+            "Sample Rate",
+            f"{SAMPLE_RATE} Hz"
         )
 
     with stat_col3:
 
         st.metric(
-            "Minimum",
-            f"{np.min(numeric_signal):.4f}"
+            "RMS Energy",
+            f"{np.mean(rms):.4f}"
         )
 
     with stat_col4:
 
         st.metric(
-            "Maximum",
-            f"{np.max(numeric_signal):.4f}"
+            "Zero Crossing Rate",
+            f"{np.mean(zero_crossing_rate):.4f}"
+        )
+
+    # ======================================================
+    # SPECTRAL FEATURES
+    # ======================================================
+
+    st.subheader("🎵 Spectral Features")
+
+    spectral_col1, spectral_col2 = st.columns(2)
+
+    with spectral_col1:
+
+        st.metric(
+            "Spectral Centroid",
+            f"{np.mean(spectral_centroid):.2f} Hz"
+        )
+
+    with spectral_col2:
+
+        st.metric(
+            "Spectral Bandwidth",
+            f"{np.mean(spectral_bandwidth):.2f} Hz"
+        )
+
+    # ======================================================
+    # MFCC STATISTICS
+    # ======================================================
+
+    st.subheader("🧠 MFCC Statistics")
+
+    mfcc_col1, mfcc_col2, mfcc_col3, mfcc_col4 = st.columns(4)
+
+    with mfcc_col1:
+
+        st.metric(
+            "MFCC Mean",
+            f"{np.mean(mfcc):.4f}"
+        )
+
+    with mfcc_col2:
+
+        st.metric(
+            "MFCC Std",
+            f"{np.std(mfcc):.4f}"
+        )
+
+    with mfcc_col3:
+
+        st.metric(
+            "MFCC Minimum",
+            f"{np.min(mfcc):.4f}"
+        )
+
+    with mfcc_col4:
+
+        st.metric(
+            "MFCC Maximum",
+            f"{np.max(mfcc):.4f}"
         )
 
 except Exception as e:
 
     st.warning(
-        "Feature statistics could not be calculated."
+        "Audio feature statistics could not be calculated."
     )
 
 
@@ -1066,33 +1142,6 @@ if predict_button:
 
     st.success(
         "Emotion prediction completed successfully."
-    )
-
-
-    # ======================================================
-    # MAIN RESULT
-    # ======================================================
-
-    prediction_emoji = emotion_emoji(
-        predicted_emotion
-    )
-
-    st.markdown(
-        f"""
-        <div class="prediction-box">
-
-            <div class="prediction-emotion">
-                {prediction_emoji}
-                {predicted_emotion}
-            </div>
-
-            <div class="prediction-confidence">
-                Confidence: <strong>{confidence:.2f}%</strong>
-            </div>
-
-        </div>
-        """,
-        unsafe_allow_html=True
     )
 
 
@@ -1355,7 +1404,7 @@ st.markdown(
     independent **3-second audio chunks**.
 
     Each complete chunk is processed separately by
-    CNN Version 2.
+    CNN Version 2 using **50% overlap**.
     """
 )
 
@@ -1416,7 +1465,7 @@ if chunk_analyze_button:
             f"""
             Chunk-level analysis completed.
             {len(chunk_results)} complete 3-second chunk(s)
-            were analyzed.
+            were analyzed using 50% overlap.
             """
         )
 
@@ -1488,7 +1537,205 @@ if chunk_analyze_button:
 
 
         # ==================================================
-        # TOP EMOTION FOR EACH CHUNK
+        # TEMPORAL EMOTION ANALYSIS
+        # ==================================================
+
+        st.subheader(
+            "📊 Temporal Emotion Analysis"
+        )
+
+        timeline_fig = plot_emotion_timeline(
+            chunk_results
+        )
+
+        if timeline_fig is not None:
+
+            st.pyplot(
+                timeline_fig,
+                use_container_width=True
+            )
+
+
+        # ==================================================
+        # TOP-3 PREDICTIONS FOR EVERY CHUNK
+        # ==================================================
+
+        st.subheader(
+            "🏆 Top-3 Predictions for Every Chunk"
+        )
+
+        st.markdown(
+            """
+            The table below shows the three highest-probability
+            emotion predictions produced by CNN Version 2 for
+            each individual audio chunk.
+            """
+        )
+
+
+        top3_table_data = []
+
+
+        # ==================================================
+        # CALCULATE TOP-3 FOR EACH CHUNK
+        # ==================================================
+
+        for chunk in chunk_results:
+
+            chunk_number = chunk[
+                "chunk"
+            ]
+
+            start_time_audio = chunk[
+                "start_time"
+            ]
+
+            end_time_audio = chunk[
+                "end_time"
+            ]
+
+            probabilities = np.asarray(
+                chunk[
+                    "probabilities"
+                ]
+            )
+
+
+            # --------------------------------------------------
+            # VALIDATE PROBABILITIES
+            # --------------------------------------------------
+
+            if probabilities.size == 0:
+
+                continue
+
+
+            # --------------------------------------------------
+            # GET TOP-3 INDICES
+            # --------------------------------------------------
+
+            top_indices = np.argsort(
+                probabilities
+            )[::-1][:3]
+
+
+            # --------------------------------------------------
+            # GET TOP-3 EMOTIONS
+            # --------------------------------------------------
+
+            top1_emotion = class_names[
+                int(top_indices[0])
+            ]
+
+            top2_emotion = class_names[
+                int(top_indices[1])
+            ]
+
+            top3_emotion = class_names[
+                int(top_indices[2])
+            ]
+
+
+            # --------------------------------------------------
+            # GET TOP-3 PROBABILITIES
+            # --------------------------------------------------
+
+            top1_probability = (
+                probabilities[
+                    top_indices[0]
+                ] * 100
+            )
+
+            top2_probability = (
+                probabilities[
+                    top_indices[1]
+                ] * 100
+            )
+
+            top3_probability = (
+                probabilities[
+                    top_indices[2]
+                ] * 100
+            )
+
+
+            # --------------------------------------------------
+            # ADD ROW
+            # --------------------------------------------------
+
+            top3_table_data.append(
+                {
+                    "Chunk": chunk_number,
+
+                    "Time (s)": (
+                        f"{start_time_audio:.1f} – "
+                        f"{end_time_audio:.1f}"
+                    ),
+
+                    "🥇 Top-1 Emotion": (
+                        f"{emotion_emoji(top1_emotion)} "
+                        f"{top1_emotion}"
+                    ),
+
+                    "Top-1 (%)": round(
+                        top1_probability,
+                        2
+                    ),
+
+                    "🥈 Top-2 Emotion": (
+                        f"{emotion_emoji(top2_emotion)} "
+                        f"{top2_emotion}"
+                    ),
+
+                    "Top-2 (%)": round(
+                        top2_probability,
+                        2
+                    ),
+
+                    "🥉 Top-3 Emotion": (
+                        f"{emotion_emoji(top3_emotion)} "
+                        f"{top3_emotion}"
+                    ),
+
+                    "Top-3 (%)": round(
+                        top3_probability,
+                        2
+                    )
+                }
+            )
+
+
+        # ==================================================
+        # CREATE TOP-3 DATAFRAME
+        # ==================================================
+
+        top3_df = pd.DataFrame(
+            top3_table_data
+        )
+
+
+        # ==================================================
+        # DISPLAY TOP-3 TABLE
+        # ==================================================
+
+        if not top3_df.empty:
+
+            st.dataframe(
+                top3_df,
+                use_container_width=True,
+                hide_index=True
+            )
+
+        else:
+
+            st.warning(
+                "Top-3 probability information is not available "
+                "for the analyzed chunks."
+            )
+
+
+        # ==================================================
+        # CHUNK EMOTION DETAILS
         # ==================================================
 
         st.subheader(
@@ -1518,10 +1765,6 @@ if chunk_analyze_button:
                 "confidence"
             ]
 
-            probabilities = chunk[
-                "probabilities"
-            ]
-
 
             with st.expander(
                 f"Chunk {chunk_number}: "
@@ -1534,13 +1777,22 @@ if chunk_analyze_button:
                 detail_col1, detail_col2 = st.columns(2)
 
 
+                # --------------------------------------------------
+                # PREDICTED EMOTION
+                # --------------------------------------------------
+
                 with detail_col1:
 
                     st.metric(
                         "Predicted Emotion",
-                        f"{emotion_emoji(emotion)} {emotion}"
+                        f"{emotion_emoji(emotion)} "
+                        f"{emotion}"
                     )
 
+
+                # --------------------------------------------------
+                # CONFIDENCE
+                # --------------------------------------------------
 
                 with detail_col2:
 
@@ -1548,51 +1800,6 @@ if chunk_analyze_button:
                         "Confidence",
                         f"{confidence:.2f}%"
                     )
-
-
-                # ------------------------------------------
-                # TOP 3 EMOTIONS FOR THIS CHUNK
-                # ------------------------------------------
-
-                chunk_indices = np.argsort(
-                    probabilities
-                )[::-1][:3]
-
-
-                chunk_top_data = []
-
-
-                for idx in chunk_indices:
-
-                    chunk_top_data.append(
-                        {
-                            "Emotion": class_names[idx],
-                            "Probability (%)": round(
-                                float(
-                                    probabilities[idx]
-                                    * 100
-                                ),
-                                2
-                            )
-                        }
-                    )
-
-
-                chunk_top_df = pd.DataFrame(
-                    chunk_top_data
-                )
-
-
-                st.markdown(
-                    "**Top 3 emotion probabilities:**"
-                )
-
-
-                st.dataframe(
-                    chunk_top_df,
-                    use_container_width=True,
-                    hide_index=True
-                )
 
 
         # ==================================================
@@ -1625,11 +1832,20 @@ if chunk_analyze_button:
 
 
         # ==================================================
-        # SUMMARY METRICS
+        # OVERALL EMOTION SUMMARY
         # ==================================================
 
-        stat_col1, stat_col2, stat_col3 = st.columns(3)
+        st.subheader(
+            "🏆 Overall Emotion Summary"
+        )
 
+
+        stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
+
+
+        # ==================================================
+        # TOTAL CHUNKS
+        # ==================================================
 
         with stat_col1:
 
@@ -1638,6 +1854,10 @@ if chunk_analyze_button:
                 len(chunk_results)
             )
 
+
+        # ==================================================
+        # DOMINANT EMOTION
+        # ==================================================
 
         with stat_col2:
 
@@ -1657,11 +1877,46 @@ if chunk_analyze_button:
                 )
 
 
+        # ==================================================
+        # DOMINANT OCCURRENCE
+        # ==================================================
+
         with stat_col3:
+
+            st.metric(
+                "Occurrence",
+                f"{dominant_percentage:.2f}%"
+            )
+
+
+        # ==================================================
+        # AVERAGE CONFIDENCE
+        # ==================================================
+
+        with stat_col4:
 
             st.metric(
                 "Average Confidence",
                 f"{average_confidence:.2f}%"
+            )
+
+
+        # ==================================================
+        # OVERALL INTERPRETATION
+        # ==================================================
+
+        if dominant_emotion:
+
+            st.info(
+                f"""
+                **Overall Result:** {emotion_emoji(dominant_emotion)}
+                **{dominant_emotion}** was the dominant emotion across
+                the analyzed audio.
+
+                It was predicted in **{dominant_percentage:.2f}%**
+                of the analyzed chunks, with an average prediction
+                confidence of **{average_confidence:.2f}%**.
+                """
             )
 
 
@@ -1752,8 +2007,6 @@ if chunk_analyze_button:
                 **{average_confidence:.2f}%**.
                 """
             )
-
-
 # ==========================================================
 # FOOTER
 # ==========================================================
@@ -1767,4 +2020,3 @@ st.caption(
     Log-Mel Spectrogram Features
     """
 )
-
