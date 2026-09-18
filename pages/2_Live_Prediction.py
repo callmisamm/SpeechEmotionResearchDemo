@@ -12,7 +12,6 @@ CNN Version 2 Deployment
 
 import os
 import tempfile
-import time
 
 import librosa
 import joblib
@@ -28,7 +27,6 @@ from tensorflow.keras.models import load_model
 # CUSTOM MODULES
 # ==========================================================
 
-from utils.feature_utils import load_audio
 from utils.audio_features import extract_all_features
 
 from utils.prediction import (
@@ -41,18 +39,12 @@ from utils.prediction import (
 
 from utils.visualizations import (
     plot_waveform,
-    plot_spectrogram,
     plot_logmel,
     plot_mfcc,
     plot_chroma,
     plot_attention_heatmap,
     plot_probability_chart,
     plot_emotion_timeline
-)
-
-from utils.feature_utils import (
-    load_audio,
-    SAMPLE_RATE
 )
 
 
@@ -66,7 +58,6 @@ st.set_page_config(
     layout="wide"
 )
 
-
 # ==========================================================
 # CUSTOM CSS
 # ==========================================================
@@ -74,6 +65,59 @@ st.set_page_config(
 st.markdown(
     """
     <style>
+
+    /* ======================================================
+       HIDE STREAMLIT DEFAULT UI
+       ====================================================== */
+
+    /* Hide toolbar */
+    [data-testid="stToolbar"] {
+        visibility: hidden;
+        height: 0;
+        position: fixed;
+    }
+
+    /* Hide Deploy button */
+    [data-testid="stAppDeployButton"] {
+        display: none;
+    }
+
+    /* Hide Running / Stop status widget */
+    [data-testid="stStatusWidget"] {
+        display: none;
+    }
+
+    /* Hide hamburger menu */
+    #MainMenu {
+        visibility: hidden;
+    }
+
+    /* Hide header */
+    header {
+        visibility: hidden;
+        height: 0;
+    }
+
+    /* Hide footer */
+    footer {
+        visibility: hidden;
+    }
+
+    /* ======================================================
+       HIDE STREAMLIT DEFAULT SPINNER
+       ====================================================== */
+
+    [data-testid="stSpinner"] > div > div {
+        display: none;
+    }
+
+    .stSpinner > div {
+        border: none !important;
+    }
+
+    /* ======================================================
+       MAIN TITLE
+       ====================================================== */
 
     .main-title {
         text-align: center;
@@ -86,13 +130,17 @@ st.markdown(
         text-align: center;
         font-size: 18px;
         color: #777;
-        margin-bottom: 25px;
+        margin-bottom: 18px;
     }
 
+    /* ======================================================
+       PREDICTION BOX
+       ====================================================== */
+
     .prediction-box {
-        padding: 25px;
+        padding: 18px;
         border-radius: 15px;
-        border: 1px solid rgba(128,128,128,0.25);
+        border: 1px solid rgba(128, 128, 128, 0.25);
         text-align: center;
         margin-top: 15px;
         margin-bottom: 20px;
@@ -108,15 +156,21 @@ st.markdown(
         margin-top: 8px;
     }
 
+    /* ======================================================
+       EMOTION LOADER
+       ====================================================== */
+
     .emotion-loader-wrapper {
         text-align: center;
         padding: 25px 10px;
+        min-height: 90px;
     }
 
     .emotion-loader {
         position: relative;
         width: 100%;
         height: 90px;
+        min-height: 90px;
         display: flex;
         justify-content: center;
         align-items: center;
@@ -127,6 +181,10 @@ st.markdown(
         font-size: 60px;
         opacity: 0;
     }
+
+    /* ======================================================
+       EMOTION ANIMATION
+       ====================================================== */
 
     .emotion:nth-child(1) {
         animation: showEmoji 2.4s infinite;
@@ -168,6 +226,10 @@ st.markdown(
         animation-delay: 2.1s;
     }
 
+    /* ======================================================
+       EMOTION LOADER KEYFRAMES
+       ====================================================== */
+
     @keyframes showEmoji {
 
         0% {
@@ -197,6 +259,10 @@ st.markdown(
 
     }
 
+    /* ======================================================
+       LOADING TEXT
+       ====================================================== */
+
     .loading-text {
         font-size: 18px;
         margin-top: 15px;
@@ -206,7 +272,6 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-
 
 # ==========================================================
 # EMOTION LOADER
@@ -709,337 +774,235 @@ with col3:
 
 
 # ==========================================================
-# FEATURE EXTRACTION SUMMARY
+# COMPACT AUDIO ANALYSIS
 # ==========================================================
 
-st.divider()
+with st.expander("🔬 Audio Analysis", expanded=False):
 
-st.header("🧬 Extracted Audio Features")
+    try:
+        # Basic audio characteristics
+        duration = len(signal) / sample_rate
 
-feature_col1, feature_col2, feature_col3 = st.columns(3)
+        rms = librosa.feature.rms(y=signal)
+        zero_crossing_rate = librosa.feature.zero_crossing_rate(
+            y=signal
+        )
 
-with feature_col1:
+        spectral_centroid = librosa.feature.spectral_centroid(
+            y=signal,
+            sr=sample_rate
+        )
 
-    st.info(
-        """
-        **Log-Mel Spectrogram**
+        spectral_bandwidth = librosa.feature.spectral_bandwidth(
+            y=signal,
+            sr=sample_rate
+        )
 
-        Used as the primary CNN input feature.
-        """
-    )
+        # 13 MFCC coefficients are calculated for supplementary
+        # audio analysis. They are NOT used as CNN input.
+        mfcc = librosa.feature.mfcc(
+            y=signal,
+            sr=sample_rate,
+            n_mfcc=13
+        )
 
-with feature_col2:
+        # ------------------------------------------------------
+        # BASIC CHARACTERISTICS
+        # ------------------------------------------------------
 
-    st.info(
-        """
-        **MFCC**
+        st.caption(
+            "Compact acoustic characteristics of the uploaded or "
+            "recorded speech."
+        )
 
-        Captures spectral characteristics
-        of the speech signal.
-        """
-    )
+        col1, col2, col3, col4 = st.columns(4)
 
-with feature_col3:
+        with col1:
+            st.metric(
+                "Duration",
+                f"{duration:.2f} sec"
+            )
 
-    st.info(
-        """
-        **Chroma**
+        with col2:
+            st.metric(
+                "Sample Rate",
+                f"{sample_rate} Hz"
+            )
 
-        Represents pitch-class information
-        within the audio.
-        """
-    )
+        with col3:
+            st.metric(
+                "RMS Energy",
+                f"{np.mean(rms):.4f}"
+            )
 
+        with col4:
+            st.metric(
+                "Zero Crossing Rate",
+                f"{np.mean(zero_crossing_rate):.4f}"
+            )
 
-# ==========================================================
-# VISUALIZATIONS
-# ==========================================================
+        # ------------------------------------------------------
+        # SPECTRAL CHARACTERISTICS
+        # ------------------------------------------------------
 
-st.divider()
+        st.caption("Spectral characteristics")
 
-st.header("📈 Audio Feature Visualization")
+        col5, col6 = st.columns(2)
 
+        with col5:
+            st.metric(
+                "Spectral Centroid",
+                f"{np.mean(spectral_centroid):.2f} Hz"
+            )
 
-# ==========================================================
-# WAVEFORM
-# ==========================================================
+        with col6:
+            st.metric(
+                "Spectral Bandwidth",
+                f"{np.mean(spectral_bandwidth):.2f} Hz"
+            )
 
-st.subheader("🌊 Waveform")
+        # ------------------------------------------------------
+        # MFCC SUMMARY
+        # ------------------------------------------------------
 
-try:
+        st.caption("MFCC summary — 13 coefficients")
 
-    waveform_fig = plot_waveform(
-        signal,
-        sample_rate
-    )
+        col7, col8, col9, col10 = st.columns(4)
 
-    st.pyplot(
-        waveform_fig,
-        use_container_width=True
-    )
+        with col7:
+            st.metric(
+                "MFCC Mean",
+                f"{np.mean(mfcc):.4f}"
+            )
 
-except Exception as e:
+        with col8:
+            st.metric(
+                "MFCC Std",
+                f"{np.std(mfcc):.4f}"
+            )
 
-    st.warning(
-        "Waveform visualization could not be generated."
-    )
+        with col9:
+            st.metric(
+                "MFCC Min",
+                f"{np.min(mfcc):.4f}"
+            )
 
-    st.exception(e)
+        with col10:
+            st.metric(
+                "MFCC Max",
+                f"{np.max(mfcc):.4f}"
+            )
 
+        st.caption(
+            "CNN input: 128 × 128 Log-Mel Spectrogram (1 channel). "
+            "MFCC, Chroma, RMS, ZCR, and spectral statistics are "
+            "displayed for supplementary analysis only."
+        )
 
-# ==========================================================
-# SPECTROGRAM
-# ==========================================================
-
-st.subheader("📡 Spectrogram")
-
-try:
-
-    spectrogram_fig = plot_spectrogram(
-        signal,
-        sample_rate
-    )
-
-    st.pyplot(
-        spectrogram_fig,
-        use_container_width=True
-    )
-
-except Exception as e:
-
-    st.warning(
-        "Spectrogram visualization could not be generated."
-    )
-
-    st.exception(e)
-
-
-# ==========================================================
-# LOG-MEL SPECTROGRAM
-# ==========================================================
-
-st.subheader("🔥 Log-Mel Spectrogram")
-
-try:
-
-    logmel_fig = plot_logmel(
-        signal,
-        sample_rate
-    )
-
-    st.pyplot(
-        logmel_fig,
-        use_container_width=True
-    )
-
-except Exception as e:
-
-    st.warning(
-        "Log-Mel visualization could not be generated."
-    )
-
-    st.exception(e)
-
-
-# ==========================================================
-# MFCC
-# ==========================================================
-
-st.subheader("🎵 MFCC")
-
-try:
-
-    mfcc_fig = plot_mfcc(
-        signal,
-        sample_rate
-    )
-
-    st.pyplot(
-        mfcc_fig,
-        use_container_width=True
-    )
-
-except Exception as e:
-
-    st.warning(
-        "MFCC visualization could not be generated."
-    )
-
-    st.exception(e)
+    except Exception as e:
+        st.warning(
+            "Audio characteristics could not be calculated."
+        )
+        st.exception(e)
 
 
 # ==========================================================
-# CHROMA
+# FEATURE VISUALIZATIONS
 # ==========================================================
 
-st.subheader("🎼 Chroma")
+with st.expander("📊 Feature Visualizations", expanded=False):
 
-try:
+    # ----------------------------------------------------------
+    # WAVEFORM
+    # ----------------------------------------------------------
 
-    chroma_fig = plot_chroma(
-        signal,
-        sample_rate
-    )
+    st.subheader("🌊 Waveform")
 
-    st.pyplot(
-        chroma_fig,
-        use_container_width=True
-    )
+    try:
+        waveform_fig = plot_waveform(
+            signal,
+            sample_rate
+        )
 
-except Exception as e:
+        st.pyplot(
+            waveform_fig,
+            use_container_width=True
+        )
 
-    st.warning(
-        "Chroma visualization could not be generated."
-    )
+    except Exception as e:
+        st.warning(
+            "Waveform visualization could not be generated."
+        )
+        st.exception(e)
 
-    st.exception(e)
+    # ----------------------------------------------------------
+    # LOG-MEL SPECTROGRAM
+    # ----------------------------------------------------------
 
+    st.subheader("🔥 Log-Mel Spectrogram")
 
-# ==========================================================
-# FEATURE STATISTICS
-# ==========================================================
+    try:
+        logmel_fig = plot_logmel(
+            signal,
+            sample_rate
+        )
 
-st.divider()
+        st.pyplot(
+            logmel_fig,
+            use_container_width=True
+        )
 
-st.header("📋 Audio Feature Statistics")
+    except Exception as e:
+        st.warning(
+            "Log-Mel visualization could not be generated."
+        )
+        st.exception(e)
 
-try:
-
-    # ------------------------------------------------------
-    # Basic Audio Information
-    # ------------------------------------------------------
-
-    duration = len(signal) / SAMPLE_RATE
-
-    # ------------------------------------------------------
-    # Audio Features
-    # ------------------------------------------------------
-
-    rms = librosa.feature.rms(
-        y=signal
-    )
-
-    zero_crossing_rate = librosa.feature.zero_crossing_rate(
-        signal
-    )
-
-    spectral_centroid = librosa.feature.spectral_centroid(
-        y=signal,
-        sr=SAMPLE_RATE
-    )
-
-    spectral_bandwidth = librosa.feature.spectral_bandwidth(
-        y=signal,
-        sr=SAMPLE_RATE
-    )
-
-    # ------------------------------------------------------
+    # ----------------------------------------------------------
     # MFCC
-    # ------------------------------------------------------
+    # ----------------------------------------------------------
 
-    mfcc = librosa.feature.mfcc(
-        y=signal,
-        sr=SAMPLE_RATE,
-        n_mfcc=13
-    )
+    st.subheader("🎵 MFCC")
 
-    # ======================================================
-    # DISPLAY STATISTICS
-    # ======================================================
-
-    stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
-
-    with stat_col1:
-
-        st.metric(
-            "Duration",
-            f"{duration:.2f} sec"
+    try:
+        mfcc_fig = plot_mfcc(
+            signal,
+            sample_rate
         )
 
-    with stat_col2:
-
-        st.metric(
-            "Sample Rate",
-            f"{SAMPLE_RATE} Hz"
+        st.pyplot(
+            mfcc_fig,
+            use_container_width=True
         )
 
-    with stat_col3:
+    except Exception as e:
+        st.warning(
+            "MFCC visualization could not be generated."
+        )
+        st.exception(e)
 
-        st.metric(
-            "RMS Energy",
-            f"{np.mean(rms):.4f}"
+    # ----------------------------------------------------------
+    # CHROMA
+    # ----------------------------------------------------------
+
+    st.subheader("🎼 Chroma")
+
+    try:
+        chroma_fig = plot_chroma(
+            signal,
+            sample_rate
         )
 
-    with stat_col4:
-
-        st.metric(
-            "Zero Crossing Rate",
-            f"{np.mean(zero_crossing_rate):.4f}"
+        st.pyplot(
+            chroma_fig,
+            use_container_width=True
         )
 
-    # ======================================================
-    # SPECTRAL FEATURES
-    # ======================================================
-
-    st.subheader("🎵 Spectral Features")
-
-    spectral_col1, spectral_col2 = st.columns(2)
-
-    with spectral_col1:
-
-        st.metric(
-            "Spectral Centroid",
-            f"{np.mean(spectral_centroid):.2f} Hz"
+    except Exception as e:
+        st.warning(
+            "Chroma visualization could not be generated."
         )
-
-    with spectral_col2:
-
-        st.metric(
-            "Spectral Bandwidth",
-            f"{np.mean(spectral_bandwidth):.2f} Hz"
-        )
-
-    # ======================================================
-    # MFCC STATISTICS
-    # ======================================================
-
-    st.subheader("🧠 MFCC Statistics")
-
-    mfcc_col1, mfcc_col2, mfcc_col3, mfcc_col4 = st.columns(4)
-
-    with mfcc_col1:
-
-        st.metric(
-            "MFCC Mean",
-            f"{np.mean(mfcc):.4f}"
-        )
-
-    with mfcc_col2:
-
-        st.metric(
-            "MFCC Std",
-            f"{np.std(mfcc):.4f}"
-        )
-
-    with mfcc_col3:
-
-        st.metric(
-            "MFCC Minimum",
-            f"{np.min(mfcc):.4f}"
-        )
-
-    with mfcc_col4:
-
-        st.metric(
-            "MFCC Maximum",
-            f"{np.max(mfcc):.4f}"
-        )
-
-except Exception as e:
-
-    st.warning(
-        "Audio feature statistics could not be calculated."
-    )
+        st.exception(e)
 
 
 # ==========================================================
