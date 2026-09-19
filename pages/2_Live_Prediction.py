@@ -603,6 +603,7 @@ with record_tab:
         start_prompt="🎙️ Start Recording",
         stop_prompt="⏹️ Stop Recording",
         just_once=False,
+        format="wav",
         use_container_width=True,
         key="live_prediction_recorder"
     )
@@ -612,10 +613,10 @@ with record_tab:
         try:
 
             recorded_bytes = audio_recording["bytes"]
-
+            recorded_format = audio_recording.get("format", "wav")
             recorded_file = tempfile.NamedTemporaryFile(
                 delete=False,
-                suffix=".wav"
+                suffix=f".{recorded_format}"
             )
 
             recorded_file.write(
@@ -630,7 +631,7 @@ with record_tab:
 
             st.audio(
                 recorded_bytes,
-                format="audio/wav"
+                format=f"audio/{recorded_format}"
             )
 
             st.success(
